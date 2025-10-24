@@ -23,7 +23,6 @@ npm run lint
 ### Customize configuration
 See [Configuration Reference](https://cli.vuejs.org/config/).
 
-
 src/
 ├── components/
 │   └── index.html  // 主页 HTML 模板文件

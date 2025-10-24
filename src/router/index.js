@@ -9,7 +9,7 @@ const routes = [
     component: NewsList
   },
   {
-    path: '/news/:id',
+    path: '/news/:articleId',  // 路由参数为 articleId（关键）
     name: 'NewsDetail',
     component: NewsDetail
   }
