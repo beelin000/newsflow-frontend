@@ -54,7 +54,7 @@
         target="_blank" 
         class="inline-block mt-6 text-blue-500 hover:underline"
       >
-        查看新闻原文
+        查看原文
       </a>
     </div>
   </div>

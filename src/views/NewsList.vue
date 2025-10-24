@@ -3,7 +3,7 @@
     <!-- 顶部导航栏 -->
     <header class="bg-black text-white p-4 flex items-center justify-between">
       <h1 class="text-xl font-bold">NewsFlow</h1>
-      <button @click="fetchNews()" class="text-white">
+      <button @click="refreshNews" class="text-white">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 13a5 5 0 0 1 5 5m0 0a5 5 0 0 1-5 5m5-5a5 5 0 0 0-5-5m0 0a5 5 0 0 0-5 5" />
         </svg>
@@ -30,10 +30,22 @@
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
     </div>
-
     <!-- 加载状态 -->
-    <div v-if="loading" class="text-center p-6 text-gray-500">
+    <div v-if="loading && page === 1" class="text-center p-6 text-gray-500">
       正在加载新闻...
+    </div>
+
+    <!-- 新闻列表 -->
+    <div v-else-if="newsList.length > 0" class="p-4">
+      <NewsCard 
+        v-for="article in newsList"
+        :key="article.articleId"
+        :imgSrc="article.image || 'https://picsum.photos/seed/default/200/150'"
+        :title="article.title"
+        :source="article.source.name"
+        :time="formatTime(article.publishedAt)"
+        :to="`/news/${article.articleId}`"
+      />
     </div>
 
     <!-- 加载更多状态提示 -->
@@ -45,29 +57,20 @@
       已显示全部内容
     </div>
 
-
     <!-- 错误状态 -->
     <div v-else-if="error" class="text-center p-6 text-red-500">
       {{ error }}
     </div>
 
-    <!-- 新闻列表（动态渲染API数据） -->
-    <div v-else class="p-4">
-      <NewsCard 
-        v-for="article in newsList"
-        :key="article.articleId"
-        :imgSrc="article.image || 'https://picsum.photos/seed/default/200/150'"
-        :title="article.title"
-        :source="article.source.name"
-        :time="formatTime(article.publishedAt)"
-        :to="`/news/${article.articleId}`"
-      />
+    <!-- 空状态 -->
+    <div v-else-if="!loading && newsList.length === 0" class="text-center p-6 text-gray-500">
+      暂无新闻数据
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';  // 引入axios
 import NewsCard from '../components/NewsCard.vue';
 
@@ -76,11 +79,11 @@ const newsList = ref([]);  // 新闻列表（API返回的articles）
 const loading = ref(false);  // 加载状态
 const error = ref('');  // 错误信息
 const page = ref(1);  // 当前页码（默认1）
-const pageSize = ref(20);  // 每页条数（默认20，最大100）
+const pageSize = ref(10);  // 每页条数（默认10，下拉每次新加载10条）
 const searchQuery = ref('');  // 搜索关键词（对应API的q参数）
 const totalResults = ref(0);  // 符合条件的新闻总条数（API返回）
 const loadingMore = ref(false); // 加载更多状态
-const hasMore = ref(true); // 是否还有更多数据
+const hasMore = ref(true); // 是否有更多数据可加载
 
 
 // 2. 时间格式化函数（ISO 8601 → 友好格式，如“2小时前”“2023-10-15 16:30”）
@@ -113,10 +116,21 @@ const formatTime = (isoTime) => {
 };
 
 // 3. 核心：请求API新闻数据
-const fetchNews = async () => {
-  loading.value = true;
+// 请求新闻数据
+const fetchNews = async (isLoadMore = false) => {
+  // 如果是加载更多，设置loadingMore状态
+  if (isLoadMore) {
+    loadingMore.value = true;
+  } else {
+    // 首次加载或刷新，重置列表
+    loading.value = true;
+    newsList.value = [];
+    page.value = 1;
+    hasMore.value = true;
+  }
+
   error.value = '';
-  const baseUrl = 'http://localhost:8080';  // API基础地址（注意：实际需确认是否为HTTPS）
+  const baseUrl = 'http://localhost:8080';  // API基础地址（注意：实际需确认是否为HTTPS）， todo: 后续改为环境变量
   const apiUrl = `${baseUrl}/v1/api/top-headlines`;
 
   try {
@@ -139,29 +153,80 @@ const fetchNews = async () => {
     }
 
     // 赋值数据, data.data 结构包含 articles 和 totalResults
-    // console.log('Fetched news data:', data.data);
-    newsList.value = data.data.articles || [];
-    totalResults.value = data.data.totalResults || 0;
+    // 处理源数据
+    const newArticles = data.data.articles || [];
+    newArticles.forEach(article => {
+      try {
+        const source = JSON.parse(article.source.name);
+        article.source.name = source.name;
+      } catch (e) {
+        // 处理JSON解析错误
+        article.source.name = article.source.name || '未知来源';
+      }
+    });
 
-    // 解析 source.name 字段的 JSON 字符串, 再赋值
-    for (const article of newsList.value) {
-      let source = JSON.parse(article.source.name);
-      article.source.name = source.name;
+    // 如果是加载更多，追加数据；否则替换数据
+    if (isLoadMore) {
+      newsList.value = [...newsList.value, ...newArticles];
+    } else {
+      newsList.value = newArticles;
     }
+    // 更新总结果数
+    totalResults.value = data.data.totalArticles || 0;
+
+    // 判断是否还有更多数据
+    hasMore.value = newsList.value.length < totalResults.value;
 
   } catch (err) {
     // 捕获错误（网络错误或API业务错误）
     error.value = err.message || '网络异常，请稍后重试';
-    newsList.value = [];
-    totalResults.value = 0;
+    
+    if (isLoadMore) {
+      // 加载更多失败时回退页码
+      page.value--;
+
+    }
   } finally {
     loading.value = false;
+    loadingMore.value = false;
   }
 };
 
-// 4. 组件挂载时首次请求数据
+// 刷新新闻
+const refreshNews = () => {
+  fetchNews();
+};
+
+// 加载更多
+const loadMore = () => {
+  // 检查是否可以加载更多
+  if (!loading.value && !loadingMore.value && hasMore.value) {
+    page.value++;
+    fetchNews(true); // 调用时传递isLoadMore为true
+  }
+};
+
+// 滚动监听处理函数
+const handleScroll = () => {
+  // 检查是否滚动到页面底部附近（50px范围内）
+  if (
+    window.innerHeight + document.documentElement.scrollTop >= 
+    document.documentElement.offsetHeight - 50
+  ) {
+    loadMore();
+  }
+};
+
+// 组件挂载时
 onMounted(() => {
   fetchNews();
+  // 添加滚动监听
+  window.addEventListener('scroll', handleScroll);
+});
+
+// 组件卸载时移除监听
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleScroll);
 });
 </script>
 
