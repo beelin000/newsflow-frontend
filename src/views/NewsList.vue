@@ -130,8 +130,10 @@ const fetchNews = async (isLoadMore = false) => {
   }
 
   error.value = '';
-  const baseUrl = 'http://localhost:8080';  // API基础地址（注意：实际需确认是否为HTTPS）， todo: 后续改为环境变量
-  const apiUrl = `${baseUrl}/v1/api/top-headlines`;
+
+  // 从环境变量获取配置
+  const baseUrl = process.env.VUE_APP_BASE_URL; // API基础地址（注意：实际需确认是否为HTTPS）
+  const apiUrl = `${baseUrl}${process.env.VUE_APP_HEADLINES_API}`;
 
   try {
     // 拼接请求参数（按API要求）
@@ -152,9 +154,13 @@ const fetchNews = async (isLoadMore = false) => {
       throw new Error(`API错误：${data.resultMsg || '获取新闻失败'}`);
     }
 
-    // 赋值数据, data.data 结构包含 articles 和 totalResults
+    // 赋值数据, data.newsdata 结构包含 articles 和 totalResults
     // 处理源数据
-    const newArticles = data.data.articles || [];
+    const newArticles = data.newsdata.articles || [];
+    // console.log('API response data:', data.newsdata);
+    // console.log('Fetched articles:', newArticles);
+    
+    // 处理每条新闻的source.name字段（解析JSON字符串）
     newArticles.forEach(article => {
       try {
         const source = JSON.parse(article.source.name);
@@ -172,7 +178,7 @@ const fetchNews = async (isLoadMore = false) => {
       newsList.value = newArticles;
     }
     // 更新总结果数
-    totalResults.value = data.data.totalArticles || 0;
+    totalResults.value = data.newsdata.totalArticles || 0;
 
     // 判断是否还有更多数据
     hasMore.value = newsList.value.length < totalResults.value;

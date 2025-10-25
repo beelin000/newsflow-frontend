@@ -35,3 +35,7 @@ src/
 │   └── index.js  // 路由配置
 └── App.vue  // 根组件
 └── main.js  // 应用入口文件
+
+开发环境运行时（npm run serve），会自动加载 .env.development
+生产环境构建时（npm run build），会自动加载 .env.production
+如需新增环境（如测试环境），可创建 .env.test 并在运行时通过 --mode test 指定环境

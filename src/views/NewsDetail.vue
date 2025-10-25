@@ -90,8 +90,10 @@ const formatTime = (isoTime) => {
 const fetchNewsDetail = async () => {
   loading.value = true;
   error.value = '';
-  const baseUrl = 'http://localhost:8080';
-  const apiUrl = `${baseUrl}/v1/api/article`;  // 若有独立详情接口，替换为`/v1/api/top-headlines/detail`
+  
+  // 从环境变量获取配置
+  const baseUrl = process.env.VUE_APP_BASE_URL;
+  const apiUrl = `${baseUrl}${process.env.VUE_APP_ARTICLE_API}`;
 
   try {
     const response = await axios.get(apiUrl, {
@@ -108,7 +110,7 @@ const fetchNewsDetail = async () => {
 
     // 赋值数据, data.data 结构包含 articles 和 totalResults
     // 从articles数组中取第一条（因筛选了articleId，数组长度应为1）
-    newsDetail.value = data.data.articles?.[0] || {};
+    newsDetail.value = data.newsdata.articles?.[0] || {};
     if (Object.keys(newsDetail.value).length === 0) {
       throw new Error('未找到该新闻详情');
     }

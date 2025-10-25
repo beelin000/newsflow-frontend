@@ -6,8 +6,7 @@ babel.config.js
 jsconfig.json
 
 # local env files
-.env.local
-.env.*.local
+.env.*
 
 # Log files
 npm-debug.log*
