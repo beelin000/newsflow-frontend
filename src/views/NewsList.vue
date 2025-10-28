@@ -101,9 +101,6 @@ const hasMore = ref(true); // 是否有更多数据可加载
   const headlinesApiUrl = `${baseUrl}${process.env.VUE_APP_HEADLINES_API}`;
   const searchApiUrl = `${baseUrl}${process.env.VUE_APP_SEARCH_API}`;
 
-  console.log('searchApiUrl:', searchApiUrl);
-  console.log('headlinesApiUrl:', headlinesApiUrl);
-
 // 2. 时间格式化函数（ISO 8601 → 友好格式，如“2小时前”“2023-10-15 16:30”）
 const formatTime = (isoTime) => {
   if (!isoTime) return '';
@@ -152,9 +149,6 @@ const fetchNews = async (isLoadMore = false) => {
   try {
     // 根据是否有搜索关键词选择对应的API
     const apiUrl = searchQuery.value ? searchApiUrl : headlinesApiUrl;
-    console.log("searchQuery:", searchQuery.value);
-    console.log('Using API URL:', apiUrl);
-
     
     const response = await axios.get(apiUrl, {
       params: {
