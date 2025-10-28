@@ -18,7 +18,20 @@
           v-model="searchQuery" 
           placeholder="搜索新闻关键词..." 
           class="flex-1 py-1 pl-10 pr-4 rounded-sm border border-gray-300 focus:outline-none focus:ring-1 focus:ring-black"
+          @keyup.enter="fetchNews()"
         />
+        <div>
+          <!-- 搜索图标 - 调整left值实现左对齐 -->
+          <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            class="h-5 w-5 text-gray-400 absolute top-1/2 left-3 -translate-y-1/2"
+            fill="none" 
+            viewBox="0 0 24 24" 
+            stroke="currentColor"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
         <button 
           @click="fetchNews()" 
           class="bg-black text-white px-2 py-1 rounded-sm hover:bg-gray-900"
@@ -26,9 +39,7 @@
           搜索
         </button>
       </div>
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 absolute top-1/2 left-7 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-      </svg>
+
     </div>
     <!-- 加载状态 -->
     <div v-if="loading && page === 1" class="text-center p-6 text-gray-500">
@@ -36,7 +47,7 @@
     </div>
 
     <!-- 新闻列表 -->
-    <div v-else-if="newsList.length > 0" class="p-4">
+    <div  v-else-if="newsList.length > 0" class="max-w-6xl mx-auto px-4">
       <NewsCard 
         v-for="article in newsList"
         :key="article.articleId"
@@ -85,6 +96,13 @@ const totalResults = ref(0);  // 符合条件的新闻总条数（API返回）
 const loadingMore = ref(false); // 加载更多状态
 const hasMore = ref(true); // 是否有更多数据可加载
 
+  // 从环境变量获取配置
+  const baseUrl = process.env.VUE_APP_BASE_URL; // API基础地址（注意：实际需确认是否为HTTPS）
+  const headlinesApiUrl = `${baseUrl}${process.env.VUE_APP_HEADLINES_API}`;
+  const searchApiUrl = `${baseUrl}${process.env.VUE_APP_SEARCH_API}`;
+
+  console.log('searchApiUrl:', searchApiUrl);
+  console.log('headlinesApiUrl:', headlinesApiUrl);
 
 // 2. 时间格式化函数（ISO 8601 → 友好格式，如“2小时前”“2023-10-15 16:30”）
 const formatTime = (isoTime) => {
@@ -116,13 +134,13 @@ const formatTime = (isoTime) => {
 };
 
 // 3. 核心：请求API新闻数据
+
 // 请求新闻数据
+// 修改fetchNews函数，根据搜索关键词切换API
 const fetchNews = async (isLoadMore = false) => {
-  // 如果是加载更多，设置loadingMore状态
   if (isLoadMore) {
     loadingMore.value = true;
   } else {
-    // 首次加载或刷新，重置列表
     loading.value = true;
     newsList.value = [];
     page.value = 1;
@@ -131,66 +149,53 @@ const fetchNews = async (isLoadMore = false) => {
 
   error.value = '';
 
-  // 从环境变量获取配置
-  const baseUrl = process.env.VUE_APP_BASE_URL; // API基础地址（注意：实际需确认是否为HTTPS）
-  const apiUrl = `${baseUrl}${process.env.VUE_APP_HEADLINES_API}`;
-
   try {
-    // 拼接请求参数（按API要求）
+    // 根据是否有搜索关键词选择对应的API
+    const apiUrl = searchQuery.value ? searchApiUrl : headlinesApiUrl;
+    console.log("searchQuery:", searchQuery.value);
+    console.log('Using API URL:', apiUrl);
+
+    
     const response = await axios.get(apiUrl, {
       params: {
-        country: null,  // 默认筛选中国新闻（可改为响应式参数让用户选择）
-        lang: 'en',     // 默认英文（可配置）
-        category: 'general',   // 默认general（可添加分类下拉框扩展，分类必须为预设值（general/business/technology/entertainment/sports/health/science/world/nation））
-        q: searchQuery.value,  // 搜索关键词
-        page: page.value,      // 当前页码
-        pageSize: pageSize.value  // 每页条数
+        // 搜索接口不需要country和category参数，仅保留必要参数
+        lang: 'en',
+        q: searchQuery.value,  // 搜索关键词，搜索接口必传
+        page: page.value,
+        pageSize: pageSize.value
       }
     });
 
     const { data } = response;
-    // 校验API响应状态
     if (data.status !== 'ok' || data.resultCode !== '000000') {
       throw new Error(`API错误：${data.resultMsg || '获取新闻失败'}`);
     }
 
-    // 赋值数据, data.newsdata 结构包含 articles 和 totalResults
-    // 处理源数据
     const newArticles = data.newsdata.articles || [];
-    // console.log('API response data:', data.newsdata);
-    // console.log('Fetched articles:', newArticles);
     
-    // 处理每条新闻的source.name字段（解析JSON字符串）
+    // 处理source.name解析（保持不变）
     newArticles.forEach(article => {
       try {
         const source = JSON.parse(article.source.name);
         article.source.name = source.name;
       } catch (e) {
-        // 处理JSON解析错误
         article.source.name = article.source.name || '未知来源';
       }
     });
 
-    // 如果是加载更多，追加数据；否则替换数据
+    // 合并或替换新闻列表（保持不变）
     if (isLoadMore) {
       newsList.value = [...newsList.value, ...newArticles];
     } else {
       newsList.value = newArticles;
     }
-    // 更新总结果数
     totalResults.value = data.newsdata.totalArticles || 0;
-
-    // 判断是否还有更多数据
     hasMore.value = newsList.value.length < totalResults.value;
 
   } catch (err) {
-    // 捕获错误（网络错误或API业务错误）
     error.value = err.message || '网络异常，请稍后重试';
-    
     if (isLoadMore) {
-      // 加载更多失败时回退页码
       page.value--;
-
     }
   } finally {
     loading.value = false;

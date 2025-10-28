@@ -25,7 +25,7 @@
     </div>
 
     <!-- 新闻详情（动态渲染API数据） -->
-    <div v-else class="p-4">
+    <div v-else class="max-w-6xl mx-auto px-4">
       <h1 class="text-2xl font-bold mb-4 line-clamp-3">{{ newsDetail.title }}</h1>
       <!-- 新闻来源+发布时间 -->
       <p class="text-gray-500 text-sm mb-4">
@@ -36,7 +36,7 @@
         v-if="newsDetail.image" 
         :src="newsDetail.image" 
         alt="News Detail Image" 
-        class="w-full h-64 object-cover rounded-lg mb-4"
+        class="w-full object-cover rounded-lg mb-4"
       />
       <!-- 新闻摘要 -->
       <div v-if="newsDetail.description" class="text-gray-700 mb-4 p-3 bg-gray-50 rounded-lg">
