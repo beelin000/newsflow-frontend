@@ -64,6 +64,9 @@
 import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';  // 用于获取路由参数
 import axios from 'axios';
+import { useNewsStore } from '../stores/newsStore';
+
+const newsStore = useNewsStore(); // 引入store
 
 // 1. 获取路由参数（articleId）
 const route = useRoute();
@@ -96,11 +99,17 @@ const fetchNewsDetail = async () => {
   const apiUrl = `${baseUrl}${process.env.VUE_APP_ARTICLE_API}`;
 
   try {
+    // 1. 先从Pinia中查找
+    const cachedNews = newsStore.getNewsById(articleId);
+    if (cachedNews) {
+      newsDetail.value = cachedNews;
+      loading.value = false;
+      return; // 找到则直接返回，无需请求接口
+    }
+
+    // 2. 若缓存中没有，再请求接口（避免直接访问详情页时无数据）
     const response = await axios.get(apiUrl, {
-      params: {
-        articleId: articleId,  // 按articleId筛选单条新闻（需API支持该参数，若不支持则需调整）
-        lang: 'zh'
-      }
+      params: { articleId }
     });
 
     const { data } = response;

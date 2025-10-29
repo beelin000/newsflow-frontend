@@ -85,6 +85,10 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';  // 引入axios
 import NewsCard from '../components/NewsCard.vue';
 
+import { useNewsStore } from '../stores/newsStore'; // 引入store
+
+const newsStore = useNewsStore();
+
 // 1. 响应式数据（API请求参数、返回数据、状态）
 const newsList = ref([]);  // 新闻列表（API返回的articles）
 const loading = ref(false);  // 加载状态
@@ -183,6 +187,9 @@ const fetchNews = async (isLoadMore = false) => {
     } else {
       newsList.value = newArticles;
     }
+    // 保存到全局状态
+    newsStore.setNewsList(newsList.value);
+
     totalResults.value = data.newsdata.totalArticles || 0;
     hasMore.value = newsList.value.length < totalResults.value;
 
