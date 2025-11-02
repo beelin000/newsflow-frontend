@@ -10,8 +10,27 @@
       </button>
     </header>
 
-    <!-- 搜索框（绑定关键词，支持搜索） -->
-    <div class="p-4">
+        <!-- 分类标签 -->
+    <div class="px-4 py-2 bg-gray-50 border-b border-gray-200">
+      <div class="flex gap-2 overflow-x-auto pb-1">
+        <button 
+          v-for="category in categories" 
+          :key="category.id"
+          @click="changeCategory(category.id)"
+          :class="[
+            'px-3 py-1 text-sm whitespace-nowrap rounded-sm',
+            activeCategory === category.id 
+              ? 'bg-black text-white' 
+              : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+          ]"
+        >
+          {{ category.name }}
+        </button>
+      </div>
+    </div>
+
+    <!-- 搜索框（已隐藏） -->
+    <div class="p-4" style="display: none;">
       <div class="relative flex gap-2">
         <input 
           type="text" 
@@ -47,7 +66,7 @@
     </div>
 
     <!-- 新闻列表 -->
-    <div  v-else-if="newsList.length > 0" class="max-w-6xl mx-auto px-4">
+    <div v-else-if="newsList.length > 0" class="max-w-6xl mx-auto px-4">
       <NewsCard 
         v-for="article in newsList"
         :key="article.articleId"
@@ -100,6 +119,15 @@ const totalResults = ref(0);  // 符合条件的新闻总条数（API返回）
 const loadingMore = ref(false); // 加载更多状态
 const hasMore = ref(true); // 是否有更多数据可加载
 
+// 1. 响应式数据：从全局状态读取分类，无值则默认 'general'
+const activeCategory = ref(newsStore.activeCategory || 'general'); 
+const categories = ref([
+  { id: 'general', name: '全部' },
+  { id: 'technology', name: '科技' },
+  { id: 'business', name: '财经' },
+  { id: 'science', name: '科学' }
+]); // 分类列表
+
   // 从环境变量获取配置
   const baseUrl = process.env.VUE_APP_BASE_URL; // API基础地址（注意：实际需确认是否为HTTPS）
   const headlinesApiUrl = `${baseUrl}${process.env.VUE_APP_HEADLINES_API}`;
@@ -136,9 +164,19 @@ const formatTime = (isoTime) => {
 
 // 3. 核心：请求API新闻数据
 
+// 切换分类
+const changeCategory = (categoryId) => {
+  if (activeCategory.value !== categoryId) {
+    activeCategory.value = categoryId;
+    newsStore.setActiveCategory(categoryId); // 保存到全局状态
+    console.log("Changed category to: " + categoryId);
+    fetchNews(false, categoryId); // 切换分类后重新获取新闻
+  }
+};
+
 // 请求新闻数据
 // 修改fetchNews函数，根据搜索关键词切换API
-const fetchNews = async (isLoadMore = false) => {
+const fetchNews = async (isLoadMore = false, category = "general") => {
   if (isLoadMore) {
     loadingMore.value = true;
   } else {
@@ -157,12 +195,20 @@ const fetchNews = async (isLoadMore = false) => {
     const response = await axios.get(apiUrl, {
       params: {
         // 搜索接口不需要country和category参数，仅保留必要参数
-        lang: 'en',
-        q: searchQuery.value,  // 搜索关键词，搜索接口必传
+        // lang: 'en',
+        category: category,
+        // q: searchQuery.value,  // 搜索关键词，搜索接口必传
         page: page.value,
         pageSize: pageSize.value
       }
     });
+    console.log("API params: " + JSON.stringify({
+      lang: 'en',
+      category: category,
+      q: searchQuery.value,
+      page: page.value,
+      pageSize: pageSize.value
+    }));
 
     const { data } = response;
     if (data.status !== 'ok' || data.resultCode !== '000000') {
@@ -231,7 +277,10 @@ const handleScroll = () => {
 
 // 组件挂载时
 onMounted(() => {
-  fetchNews();
+  // 同步全局状态到本地（解决刷新后状态不一致问题）
+  activeCategory.value = newsStore.activeCategory || 'general';
+  console.log("Mounted with category: " + activeCategory.value);
+  fetchNews(false, activeCategory.value); // 初始加载新闻
   // 添加滚动监听
   window.addEventListener('scroll', handleScroll);
 });
