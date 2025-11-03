@@ -100,14 +100,16 @@ const fetchNewsDetail = async () => {
 
   try {
     // 1. 先从Pinia中查找
-    const cachedNews = newsStore.getNewsById(articleId);
+    const cachedNews = newsStore.getFullNewsById(articleId);
     if (cachedNews) {
+      console.log("Found news in cache: " + articleId);
       newsDetail.value = cachedNews;
       loading.value = false;
       return; // 找到则直接返回，无需请求接口
     }
 
     // 2. 若缓存中没有，再请求接口（避免直接访问详情页时无数据）
+    console.log("Fetching news from API: " + articleId);
     const response = await axios.get(apiUrl, {
       params: { articleId }
     });
@@ -123,6 +125,8 @@ const fetchNewsDetail = async () => {
     if (Object.keys(newsDetail.value).length === 0) {
       throw new Error('未找到该新闻详情');
     }
+    // 将详情存入Pinia缓存
+    newsStore.setFullNews(newsDetail.value);
 
   } catch (err) {
     error.value = err.message || '网络异常，请稍后重试';

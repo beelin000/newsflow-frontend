@@ -1,20 +1,21 @@
 const { defineConfig } = require('@vue/cli-service')
 module.exports = defineConfig({
-  transpileDependencies: true
-})
-
-// module.exports = {
-//   devServer: {
-//     allowedHosts: ['localhost', '192.168.1.233'], // 允许局域网IP访问
-//     proxy: {
-//       // 匹配所有以'/api'开头的请求
-//       '/api': {
-//         target: 'http://192.168.1.233:5000',  // 后端接口的实际域名+端口（目标服务器地址）
-//         changeOrigin: true,  // 开启代理，会将请求头中的host改为target
-//         pathRewrite: {
-//           '^/api': ''  // 如果后端接口没有'/api'前缀，这里需要去掉（如后端接口是'/v1/data'，则请求'/api/v1/data'会被转发为'http://localhost:3000/v1/data'）
-//         }
-//       }
-//     }
-//   }
-// };
+  transpileDependencies: true,
+  devServer: {
+    // 允许访问的主机列表，'all' 表示允许所有主机访问
+    allowedHosts: 'all',
+    // 如果你需要指定具体的允许访问的主机（如局域网IP），可以这样配置：
+    // allowedHosts: ['localhost', '192.168.1.233'],
+    
+    // 如果你需要代理功能，可以取消下面的注释并配置
+    // proxy: {
+    //   '/api': {
+    //     target: 'http://192.168.1.233:5000',
+    //     changeOrigin: true,
+    //     pathRewrite: {
+    //       '^/api': ''
+    //     }
+    //   }
+    // }
+  }
+});
