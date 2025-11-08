@@ -23,7 +23,7 @@ defineProps({
 
 // 图片加载失败时，替换为默认图
 const handleImgError = (e) => {
-  e.target.src = 'newsflow_logo.jpeg';
+  e.target.src = '/newsflow_logo.jpeg'; // 注意开头的斜杠，指public目录下的文件
 };
 
 </script>
