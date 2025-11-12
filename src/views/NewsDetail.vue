@@ -79,14 +79,22 @@
         </button>
         
         <div v-if="aiError" class="text-red-500 mb-4 p-3 bg-red-50 rounded-lg border border-red-100">{{ aiError }}</div>
-        
-        <div v-if="aiContent" class="bg-gray-50 p-5 rounded-xl border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md">
+
+        <div
+            v-if="aiContent"
+            ref="aiContentContainer"
+            class="bg-gray-50 p-5 rounded-xl border border-gray-200 shadow-sm transition-all duration-300 hover:shadow-md max-h-[60vh] overflow-y-auto"
+        >
           <h3 class="font-bold text-lg mb-3 flex items-center gap-2 text-gray-800">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707-.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
+            AI解读
           </h3>
-          <div class="text-gray-700 leading-relaxed whitespace-pre-line">
+          <div
+              ref="aiContentDisplay"
+              class="text-gray-700 leading-relaxed whitespace-pre-line"
+          >
             {{ displayedAiContent }}
           </div>
         </div>
@@ -96,7 +104,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import {ref, onMounted, onUnmounted, nextTick} from 'vue';
 import { useRoute } from 'vue-router';  // 用于获取路由参数
 import axios from 'axios';
 import { useNewsStore } from '../stores/newsStore';
@@ -179,6 +187,7 @@ const fetchNewsDetail = async () => {
 
 
 // 请求AI解读
+// 修改 fetchAiInterpretation 函数，在启动打字机效果后设置滚动监听
 const fetchAiInterpretation = async () => {
   console.log("button clicked:", articleId);
   if (!articleId || !newsDetail.value.title) {
@@ -190,10 +199,15 @@ const fetchAiInterpretation = async () => {
   aiError.value = '';
   aiContent.value = '';
   displayedAiContent.value = '';
-  
+  userHasScrolled = false;
+
   // 清除可能存在的定时器
   if (typewriterTimer) {
     clearInterval(typewriterTimer);
+  }
+
+  if (scrollTimeout) {
+    clearTimeout(scrollTimeout);
   }
 
   try {
@@ -213,9 +227,14 @@ const fetchAiInterpretation = async () => {
 
     // 存储完整AI解读内容
     aiContent.value = data.result || '暂无有效解读内容';
-    
+
     // 启动逐字输出效果
     startTypewriterEffect();
+
+    // 等待DOM更新后设置滚动监听
+    nextTick(() => {
+      setupAiContentScrollListener();
+    });
 
   } catch (err) {
     aiError.value = err.message || 'AI解读请求失败，请稍后重试';
@@ -224,22 +243,71 @@ const fetchAiInterpretation = async () => {
   }
 };
 
-// 逐字输出效果
+// 添加新的响应式变量
+const aiContentContainer = ref(null);
+const aiContentDisplay = ref(null);
+let userHasScrolled = false;
+let scrollTimeout = null;
+
+// 监听滚动事件
+const handleAiContentScroll = () => {
+  if (aiContentContainer.value) {
+    const container = aiContentContainer.value;
+    const scrollTop = container.scrollTop;
+    const scrollHeight = container.scrollHeight;
+    const clientHeight = container.clientHeight;
+
+    // 如果用户滚动到接近底部，则认为用户想要跟随最新内容
+    if (scrollHeight - (scrollTop + clientHeight) < 50) {
+      userHasScrolled = false;
+    } else {
+      // 清除之前的timeout
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+      }
+
+      // 设置一个短暂的延迟来判断用户是否还在滚动
+      scrollTimeout = setTimeout(() => {
+        userHasScrolled = true;
+      }, 100);
+    }
+  }
+};
+
+// 修改 startTypewriterEffect 函数
 const startTypewriterEffect = () => {
   let index = 0;
   displayedAiContent.value = '';
-  
+  userHasScrolled = false;
+
   // 清除可能存在的定时器
   if (typewriterTimer) {
     clearInterval(typewriterTimer);
   }
-  
+
+  if (scrollTimeout) {
+    clearTimeout(scrollTimeout);
+  }
+
   // 每50ms输出一个字符，实现打字机效果
-  const typingSpeed = `${process.env.VUE_APP_TYPE_SPEED}`;
+  const typingSpeed = parseInt(process.env.VUE_APP_TYPE_SPEED) || 50;
   typewriterTimer = setInterval(() => {
     if (index < aiContent.value.length) {
       displayedAiContent.value += aiContent.value.charAt(index);
       index++;
+
+      // 自动滚动到最新内容（仅当用户未手动滚动时）
+      if (!userHasScrolled && aiContentContainer.value) {
+        nextTick(() => {
+          if (aiContentContainer.value) {
+            // 平滑滚动到容器底部
+            aiContentContainer.value.scrollTo({
+              top: aiContentContainer.value.scrollHeight,
+              behavior: 'smooth'
+            });
+          }
+        });
+      }
     } else {
       clearInterval(typewriterTimer);
       typewriterTimer = null;
@@ -247,14 +315,8 @@ const startTypewriterEffect = () => {
   }, typingSpeed);
 };
 
-// 组件卸载时清除定时器
-onUnmounted(() => {
-  if (typewriterTimer) {
-    clearInterval(typewriterTimer);
-  }
-});
 
-// 5. 组件挂载时请求详情
+// 在 onMounted 中添加事件监听器
 onMounted(() => {
   if (articleId) {
     fetchNewsDetail();
@@ -262,6 +324,31 @@ onMounted(() => {
     error.value = '无效的新闻ID';
   }
 });
+
+// 在 onUnmounted 中清理所有定时器和监听器
+onUnmounted(() => {
+  if (typewriterTimer) {
+    clearInterval(typewriterTimer);
+  }
+
+  if (scrollTimeout) {
+    clearTimeout(scrollTimeout);
+  }
+
+  // 移除滚动事件监听
+  if (aiContentContainer.value) {
+    aiContentContainer.value.removeEventListener('scroll', handleAiContentScroll);
+  }
+});
+
+// 添加一个在AI内容容器渲染后添加滚动监听的函数
+const setupAiContentScrollListener = () => {
+  if (aiContentContainer.value) {
+    aiContentContainer.value.addEventListener('scroll', handleAiContentScroll);
+  }
+};
+
+
 </script>
 
 <style scoped>
@@ -269,5 +356,10 @@ onMounted(() => {
   height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+/* 添加平滑滚动行为 */
+:deep(.max-h-96) {
+  scroll-behavior: smooth;
 }
 </style>
