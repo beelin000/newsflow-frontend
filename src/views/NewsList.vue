@@ -70,7 +70,7 @@
       <NewsCard 
         v-for="article in newsList"
         :key="article.articleId"
-        :imgSrc="article.image || 'https://picsum.photos/seed/default/200/150'"
+        :imgSrc="article.image"
         :title="article.title"
         :source="article.source.name"
         :time="formatTime(article.publishedAt)"
@@ -113,7 +113,7 @@ const newsList = ref([]);  // 新闻列表（API返回的articles）
 const loading = ref(false);  // 加载状态
 const error = ref('');  // 错误信息
 const page = ref(1);  // 当前页码（默认1）
-const pageSize = ref(10);  // 每页条数（默认10，下拉每次新加载10条）
+const pageSize = ref(20);  // 每页条数（默认10，下拉每次新加载10条）
 const searchQuery = ref('');  // 搜索关键词（对应API的q参数）
 const totalResults = ref(0);  // 符合条件的新闻总条数（API返回）
 const loadingMore = ref(false); // 加载更多状态
@@ -123,9 +123,8 @@ const hasMore = ref(true); // 是否有更多数据可加载
 const activeCategory = ref(newsStore.activeCategory || 'general'); 
 const categories = ref([
   { id: 'general', name: '全部' },
-  { id: 'technology', name: '科技' },
   { id: 'business', name: '财经' },
-  { id: 'science', name: '科学' }
+  { id: 'technology', name: '科技' }
 ]); // 分类列表
 
   // 从环境变量获取配置
@@ -139,6 +138,12 @@ const formatTime = (isoTime) => {
   const now = new Date();
   const publishTime = new Date(isoTime);
   const diffMs = now - publishTime;  // 时间差（毫秒）
+
+  // 计算分钟差（一小时内显示分钟级）
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  if (diffMinutes < 60) {
+    return `${diffMinutes}分钟前`;
+  }
   
   // 计算小时差
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -176,7 +181,10 @@ const changeCategory = (categoryId) => {
 
 // 请求新闻数据
 // 修改fetchNews函数，根据搜索关键词切换API
-const fetchNews = async (isLoadMore = false, category = "general") => {
+const fetchNews = async (isLoadMore = false, category = null) => {
+  // 确保使用正确的分类
+  const targetCategory = category || activeCategory.value;
+
   if (isLoadMore) {
     loadingMore.value = true;
   } else {
@@ -189,23 +197,21 @@ const fetchNews = async (isLoadMore = false, category = "general") => {
   error.value = '';
 
   try {
-    // 根据是否有搜索关键词选择对应的API
     const apiUrl = searchQuery.value ? searchApiUrl : headlinesApiUrl;
-    
+
     const response = await axios.get(apiUrl, {
       params: {
-        // 搜索接口不需要country和category参数，仅保留必要参数
-        // lang: 'en',
-        category: category,
-        // q: searchQuery.value,  // 搜索关键词，搜索接口必传
+        // 只在非搜索模式下传递 category 参数，且当分类不是 general 时才传递
+        ...(searchQuery.value ? {} : (targetCategory !== 'general' ? { category: targetCategory } : {})),
+        ...(searchQuery.value ? { q: searchQuery.value } : {}),
         page: page.value,
         pageSize: pageSize.value
       }
     });
     console.log("API params: " + JSON.stringify({
-      lang: 'en',
-      category: category,
-      q: searchQuery.value,
+      // 只在非搜索模式下传递 category 参数，且当分类不是 general 时才传递
+      ...(searchQuery.value ? {} : (targetCategory !== 'general' ? { category: targetCategory } : {})),
+      ...(searchQuery.value ? { q: searchQuery.value } : {}),
       page: page.value,
       pageSize: pageSize.value
     }));
@@ -255,23 +261,30 @@ const refreshNews = () => {
   fetchNews();
 };
 
-// 加载更多
-const loadMore = () => {
-  // 检查是否可以加载更多
-  if (!loading.value && !loadingMore.value && hasMore.value) {
-    page.value++;
-    fetchNews(true); // 调用时传递isLoadMore为true
+// 滚动监听处理函数 - 优化版本
+const handleScroll = () => {
+  // 如果正在加载或没有更多数据，则不执行加载操作
+  if (loading.value || loadingMore.value || !hasMore.value) {
+    return;
+  }
+
+  // 更精确地检测是否接近底部（距离底部100px以内）
+  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+  const scrollHeight = document.documentElement.scrollHeight;
+  const clientHeight = window.innerHeight || document.documentElement.clientHeight;
+
+  // 当距离底部小于100px时才触发加载
+  if (scrollTop + clientHeight >= scrollHeight - 100) {
+    loadMore();
   }
 };
 
-// 滚动监听处理函数
-const handleScroll = () => {
-  // 检查是否滚动到页面底部附近（50px范围内）
-  if (
-    window.innerHeight + document.documentElement.scrollTop >= 
-    document.documentElement.offsetHeight - 50
-  ) {
-    loadMore();
+// 在 loadMore 函数中也增加保护措施
+const loadMore = () => {
+  // 检查是否可以加载更多（增加状态检查）
+  if (!loading.value && !loadingMore.value && hasMore.value) {
+    page.value++;
+    fetchNews(true); // 调用时传递isLoadMore为true
   }
 };
 
