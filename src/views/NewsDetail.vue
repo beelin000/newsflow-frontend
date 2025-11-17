@@ -80,6 +80,7 @@
         
         <div v-if="aiError" class="text-red-500 mb-4 p-3 bg-red-50 rounded-lg border border-red-100">{{ aiError }}</div>
 
+        <!-- In the AI interpretation section -->
         <div
             v-if="aiContent"
             ref="aiContentContainer"
@@ -93,9 +94,9 @@
           </h3>
           <div
               ref="aiContentDisplay"
-              class="text-gray-700 leading-relaxed whitespace-pre-line"
+              class="text-gray-700 leading-relaxed prose max-w-none"
+              v-html="parseMarkdown(displayedAiContent)"
           >
-            {{ displayedAiContent }}
           </div>
         </div>
       </div>
@@ -106,6 +107,7 @@
 <script setup>
 import {ref, onMounted, onUnmounted, nextTick} from 'vue';
 import { useRoute } from 'vue-router';  // 用于获取路由参数
+import { marked } from 'marked';
 import axios from 'axios';
 import { useNewsStore } from '../stores/newsStore';
 
@@ -232,7 +234,7 @@ const fetchAiInterpretation = async () => {
     startTypewriterEffect();
 
     // 等待DOM更新后设置滚动监听
-    nextTick(() => {
+    await nextTick(() => {
       setupAiContentScrollListener();
     });
 
@@ -241,6 +243,12 @@ const fetchAiInterpretation = async () => {
   } finally {
     isAiLoading.value = false;
   }
+};
+
+// Function to parse markdown content
+const parseMarkdown = (content) => {
+  if (!content) return '';
+  return marked.parse(content);
 };
 
 // 添加新的响应式变量
